@@ -81,21 +81,41 @@ func (avd EthAccountVerificationDecorator) AnteHandle(
 			return ctx, errorsmod.Wrap(errortypes.ErrInvalidAddress, "from address cannot be empty")
 		}
 
-		// check whether the sender address is EOA
-		fromAddr := common.BytesToAddress(from)
-		acct := avd.evmKeeper.GetAccount(ctx, fromAddr)
+		feePayer := msgEthTx.GetFeePayer()
+		if !feePayer.Empty() {
+			feePayerAddr := common.BytesToAddress(feePayer)
+			feePayerAcct := avd.evmKeeper.GetAccount(ctx, feePayerAddr)
 
-		if acct == nil {
-			acc := avd.ak.NewAccountWithAddress(ctx, from)
-			avd.ak.SetAccount(ctx, acc)
-			acct = statedb.NewEmptyAccount()
-		} else if acct.IsContract() {
-			return ctx, errorsmod.Wrapf(errortypes.ErrInvalidType,
-				"the sender is not EOA: address %s, codeHash <%s>", fromAddr, acct.CodeHash)
-		}
+			if feePayerAcct == nil {
+				feePayerAcc := avd.ak.NewAccountWithAddress(ctx, feePayer)
+				avd.ak.SetAccount(ctx, feePayerAcc)
+				feePayerAcct = statedb.NewEmptyAccount()
+			} else if feePayerAcct.IsContract() {
+				return ctx, errorsmod.Wrapf(errortypes.ErrInvalidType,
+					"the sender's feePayer is not EOA: address %s, codeHash <%s>",
+					feePayerAddr, feePayerAcct.CodeHash)
+			}
 
-		if err := keeper.CheckSenderBalance(sdkmath.NewIntFromBigInt(acct.Balance), txData); err != nil {
-			return ctx, errorsmod.Wrap(err, "failed to check sender balance")
+			if err := keeper.CheckSenderBalance(sdk.NewIntFromBigInt(feePayerAcct.Balance), txData); err != nil {
+				return ctx, errorsmod.Wrap(err, "failed to check feePayer balance")
+			}
+		} else {
+			// check whether the sender address is EOA
+			fromAddr := common.BytesToAddress(from)
+			acct := avd.evmKeeper.GetAccount(ctx, fromAddr)
+
+			if acct == nil {
+				acc := avd.ak.NewAccountWithAddress(ctx, from)
+				avd.ak.SetAccount(ctx, acc)
+				acct = statedb.NewEmptyAccount()
+			} else if acct.IsContract() {
+				return ctx, errorsmod.Wrapf(errortypes.ErrInvalidType,
+					"the sender is not EOA: address %s, codeHash <%s>", fromAddr, acct.CodeHash)
+			}
+
+			if err := keeper.CheckSenderBalance(sdkmath.NewIntFromBigInt(acct.Balance), txData); err != nil {
+				return ctx, errorsmod.Wrap(err, "failed to check sender balance")
+			}
 		}
 	}
 	return next(ctx, tx, simulate)
@@ -191,9 +211,19 @@ func (egcd EthGasConsumeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simula
 			return ctx, errorsmod.Wrapf(err, "failed to verify the fees")
 		}
 
-		err = egcd.evmKeeper.DeductTxCostsFromUserBalance(ctx, fees, common.HexToAddress(msgEthTx.From))
-		if err != nil {
-			return ctx, errorsmod.Wrapf(err, "failed to deduct transaction costs from user balance")
+		// if fee payer is set, deduct the fees from the fee payer account
+		// else deduct the fees from the sender account
+		feePayer := msgEthTx.GetFeePayer()
+		if !feePayer.Empty() {
+			err = egcd.evmKeeper.DeductTxCostsFromUserBalance(ctx, fees, common.HexToAddress(msgEthTx.FeePayer))
+			if err != nil {
+				return ctx, errorsmod.Wrapf(err, "failed to deduct transaction costs from user balance")
+			}
+		} else {
+			err = egcd.evmKeeper.DeductTxCostsFromUserBalance(ctx, fees, common.HexToAddress(msgEthTx.From))
+			if err != nil {
+				return ctx, errorsmod.Wrapf(err, "failed to deduct transaction costs from user balance")
+			}
 		}
 
 		events = append(events,

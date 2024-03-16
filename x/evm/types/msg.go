@@ -314,6 +314,21 @@ func (msg *MsgEthereumTx) GetFrom() sdk.AccAddress {
 	return common.HexToAddress(msg.From).Bytes()
 }
 
+// GetFeePayer loads the ethereum sender address from the sigcache and returns an
+// sdk.AccAddress from its bytes
+func (msg *MsgEthereumTx) GetFeePayer() sdk.AccAddress {
+	if msg.FeePayer == "" {
+		return nil
+	}
+
+	return common.HexToAddress(msg.FeePayer).Bytes()
+}
+
+// SetFeePayer sets the fee payer address
+func (msg *MsgEthereumTx) SetFeePayer(feePayer string) {
+	msg.FeePayer = feePayer
+}
+
 // AsTransaction creates an Ethereum Transaction type from the msg fields
 func (msg MsgEthereumTx) AsTransaction() *ethtypes.Transaction {
 	txData, err := UnpackTxData(msg.Data)

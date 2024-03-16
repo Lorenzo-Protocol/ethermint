@@ -17,6 +17,8 @@ package keeper
 
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	v2 "github.com/evmos/ethermint/x/feemarket/migrations/v2"
+	v3 "github.com/evmos/ethermint/x/feemarket/migrations/v3"
 	v4 "github.com/evmos/ethermint/x/feemarket/migrations/v4"
 	"github.com/evmos/ethermint/x/feemarket/types"
 )
@@ -33,6 +35,16 @@ func NewMigrator(keeper Keeper, legacySubspace types.Subspace) Migrator {
 		keeper:         keeper,
 		legacySubspace: legacySubspace,
 	}
+}
+
+// Migrate1to2 migrates the store from consensus version v1 to v2
+func (m Migrator) Migrate1to2(ctx sdk.Context) error {
+	return v2.MigrateStore(ctx, m.legacySubspace, m.keeper.storeKey)
+}
+
+// Migrate2to3 migrates the store from consensus version v2 to v3
+func (m Migrator) Migrate2to3(ctx sdk.Context) error {
+	return v3.MigrateStore(ctx, m.legacySubspace)
 }
 
 // Migrate3to4 migrates the store from consensus version 3 to 4

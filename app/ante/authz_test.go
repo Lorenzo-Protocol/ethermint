@@ -2,9 +2,10 @@ package ante_test
 
 import (
 	"fmt"
+	"math/big"
 	"time"
 
-	abci "github.com/tendermint/tendermint/abci/types"
+	abci "github.com/cometbft/cometbft/abci/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -19,6 +20,7 @@ import (
 	"github.com/evmos/ethermint/crypto/ethsecp256k1"
 
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
+	"github.com/evmos/ethermint/tests"
 	evmtypes "github.com/evmos/ethermint/x/evm/types"
 )
 
@@ -226,6 +228,20 @@ func (suite *AnteTestSuite) TestRejectDeliverMsgsInAuthz() {
 	_, testAddresses, err := generatePrivKeyAddressPairs(10)
 	suite.Require().NoError(err)
 
+	to := tests.GenerateAddress()
+	testMsgEthereumTx := evmtypes.NewTx(
+		suite.app.EvmKeeper.ChainID(),
+		1,
+		&to,
+		big.NewInt(10),
+		100000,
+		big.NewInt(150),
+		big.NewInt(200),
+		nil,
+		nil,
+		nil,
+	)
+
 	testcases := []struct {
 		name         string
 		msgs         []sdk.Msg
@@ -270,7 +286,7 @@ func (suite *AnteTestSuite) TestRejectDeliverMsgsInAuthz() {
 					testAddresses[1],
 					[]sdk.Msg{
 						createMsgSend(testAddresses),
-						&evmtypes.MsgEthereumTx{},
+						testMsgEthereumTx,
 					},
 				),
 			},
@@ -283,7 +299,7 @@ func (suite *AnteTestSuite) TestRejectDeliverMsgsInAuthz() {
 					testAddresses[1],
 					2,
 					[]sdk.Msg{
-						&evmtypes.MsgEthereumTx{},
+						testMsgEthereumTx,
 					},
 				),
 			},
