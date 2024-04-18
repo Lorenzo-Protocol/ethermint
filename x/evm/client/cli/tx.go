@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/client/input"
@@ -77,17 +75,6 @@ func NewRawTxCmd() *cobra.Command {
 			rsp, err := rpctypes.NewQueryClient(clientCtx).Params(cmd.Context(), &types.QueryParamsRequest{})
 			if err != nil {
 				return err
-			}
-
-			feePayerAddr, err := cmd.Flags().GetString(flagEVMPayer)
-			if err != nil {
-				return err
-			}
-			if len(feePayerAddr) > 0 {
-				if !common.IsHexAddress(feePayerAddr) {
-					return errors.New("feePayerAddr must be hex address")
-				}
-				msg.SetFeePayer(feePayerAddr)
 			}
 
 			tx, err := msg.BuildTx(clientCtx.TxConfig.NewTxBuilder(), rsp.Params.EvmDenom)

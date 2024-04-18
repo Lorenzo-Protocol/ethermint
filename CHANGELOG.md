@@ -35,11 +35,18 @@ Ref: https://keepachangelog.com/en/1.0.0/
 
 # Changelog
 
-## [Unreleased]
+## [v0.22.0-lorenzo-2]
 
 ### State Machine Breaking
 
-- (deps) [\#19](https://github.com/bianjieai/ethermint/pull/19) Bump Cosmos-SDK to v0.47.3, Tendermint to CometBFT v0.37.1
+- (deps) chore: Remove irrelevant features
+
+
+## [v0.22.0-lorenzo-1]
+
+### State Machine Breaking
+
+- (deps) Bump Cosmos-SDK to v0.47.3, Tendermint to CometBFT v0.37.1
 
 ## [v0.22.0] - 2023-04-12
 
