@@ -66,9 +66,9 @@ func (m *EthAccount) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_EthAccount proto.InternalMessageInfo
 
-func init() {
-	proto.RegisterType((*EthAccount)(nil), "ethermint.types.v1.EthAccount")
-}
+//func init() {
+//	proto.RegisterType((*EthAccount)(nil), "ethermint.types.v1.EthAccount")
+//}
 
 func init() { proto.RegisterFile("ethermint/types/v1/account.proto", fileDescriptor_4edc057d42a619ef) }
 

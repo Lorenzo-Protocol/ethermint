@@ -117,10 +117,10 @@ func (m *PrivKey) GetKey() []byte {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*PubKey)(nil), "ethermint.crypto.v1.ethsecp256k1.PubKey")
-	proto.RegisterType((*PrivKey)(nil), "ethermint.crypto.v1.ethsecp256k1.PrivKey")
-}
+//func init() {
+//	proto.RegisterType((*PubKey)(nil), "ethermint.crypto.v1.ethsecp256k1.PubKey")
+//	proto.RegisterType((*PrivKey)(nil), "ethermint.crypto.v1.ethsecp256k1.PrivKey")
+//}
 
 func init() {
 	proto.RegisterFile("ethermint/crypto/v1/ethsecp256k1/keys.proto", fileDescriptor_0c10cadcf35beb64)
