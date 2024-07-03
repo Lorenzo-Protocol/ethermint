@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"testing"
 
+	"cosmossdk.io/math"
 	"github.com/stretchr/testify/require"
 
+	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/testutil"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 
 	"github.com/evmos/ethermint/encoding"
@@ -21,13 +22,13 @@ import (
 
 func init() {
 	// modify defaults through global
-	types.DefaultMinGasPrice = sdk.NewDecWithPrec(25, 3)
+	types.DefaultMinGasPrice = math.LegacyNewDecWithPrec(25, 3)
 }
 
 func TestMigrateStore(t *testing.T) {
 	encCfg := encoding.MakeConfig(app.ModuleBasics)
-	feemarketKey := sdk.NewKVStoreKey(feemarkettypes.StoreKey)
-	tFeeMarketKey := sdk.NewTransientStoreKey(fmt.Sprintf("%s_test", feemarkettypes.StoreKey))
+	feemarketKey := storetypes.NewKVStoreKey(feemarkettypes.StoreKey)
+	tFeeMarketKey := storetypes.NewTransientStoreKey(fmt.Sprintf("%s_test", feemarkettypes.StoreKey))
 	ctx := testutil.DefaultContext(feemarketKey, tFeeMarketKey)
 	paramstore := paramtypes.NewSubspace(
 		encCfg.Codec, encCfg.Amino, feemarketKey, tFeeMarketKey, "feemarket",
@@ -49,8 +50,8 @@ func TestMigrateStore(t *testing.T) {
 	require.True(t, paramstore.Has(ctx, feemarkettypes.ParamStoreKeyMinGasMultiplier))
 
 	var (
-		minGasPrice      sdk.Dec
-		minGasMultiplier sdk.Dec
+		minGasPrice      math.LegacyDec
+		minGasMultiplier math.LegacyDec
 	)
 
 	// Make sure the new params are set

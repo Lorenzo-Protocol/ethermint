@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum/params"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -19,7 +20,7 @@ const (
 )
 
 // DefaultMinGasMultiplier is 0.5 or 50%
-var DefaultMinGasMultiplier = sdk.NewDecWithPrec(50, 2)
+var DefaultMinGasMultiplier = math.LegacyNewDecWithPrec(50, 2)
 
 // Parameter keys
 var (

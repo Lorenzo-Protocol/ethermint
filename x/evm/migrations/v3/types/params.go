@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum/params"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -18,7 +19,7 @@ var (
 	// DefaultEVMDenom defines the default EVM denomination on Ethermint
 	DefaultEVMDenom = types.AttoPhoton
 	// DefaultMinGasMultiplier is 0.5 or 50%
-	DefaultMinGasMultiplier = sdk.NewDecWithPrec(50, 2)
+	DefaultMinGasMultiplier = math.LegacyNewDecWithPrec(50, 2)
 	// DefaultAllowUnprotectedTxs rejects all unprotected txs (i.e false)
 	DefaultAllowUnprotectedTxs = false
 )

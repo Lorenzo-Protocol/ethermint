@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math/big"
 
+	"cosmossdk.io/math"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -55,7 +56,7 @@ var _ = Describe("Feemarket", func() {
 				// 100_000`. With the fee calculation `Fee = (baseFee + tip) * gasLimit`,
 				// a `minGasPrices = 5_000_000_000` results in `minGlobalFee =
 				// 500_000_000_000_000`
-				privKey, _ = setupTestWithContext("1", sdk.NewDec(minGasPrices), sdk.NewInt(baseFee))
+				privKey, _ = setupTestWithContext("1", math.LegacyNewDec(minGasPrices), math.NewInt(baseFee))
 			})
 
 			Context("during CheckTx", func() {
@@ -129,7 +130,7 @@ var _ = Describe("Feemarket", func() {
 
 // setupTestWithContext sets up a test chain with an example Cosmos send msg,
 // given a local (validator config) and a global (feemarket param) minGasPrice
-func setupTestWithContext(valMinGasPrice string, minGasPrice sdk.Dec, baseFee sdk.Int) (*ethsecp256k1.PrivKey, banktypes.MsgSend) {
+func setupTestWithContext(valMinGasPrice string, minGasPrice math.LegacyDec, baseFee math.Int) (*ethsecp256k1.PrivKey, banktypes.MsgSend) {
 	privKey, msg := setupTest(valMinGasPrice + s.denom)
 	params := types.DefaultParams()
 	params.MinGasPrice = minGasPrice

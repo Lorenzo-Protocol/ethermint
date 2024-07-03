@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"strings"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	sdkerrors "cosmossdk.io/errors"
+	"cosmossdk.io/math"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
@@ -42,20 +42,20 @@ func (cc ChainConfig) EthereumConfig(chainID *big.Int) *params.ChainConfig {
 
 // DefaultChainConfig returns default evm parameters.
 func DefaultChainConfig() ChainConfig {
-	homesteadBlock := sdk.ZeroInt()
-	daoForkBlock := sdk.ZeroInt()
-	eip150Block := sdk.ZeroInt()
-	eip155Block := sdk.ZeroInt()
-	eip158Block := sdk.ZeroInt()
-	byzantiumBlock := sdk.ZeroInt()
-	constantinopleBlock := sdk.ZeroInt()
-	petersburgBlock := sdk.ZeroInt()
-	istanbulBlock := sdk.ZeroInt()
-	muirGlacierBlock := sdk.ZeroInt()
-	berlinBlock := sdk.ZeroInt()
-	londonBlock := sdk.ZeroInt()
-	arrowGlacierBlock := sdk.ZeroInt()
-	mergeForkBlock := sdk.ZeroInt()
+	homesteadBlock := math.ZeroInt()
+	daoForkBlock := math.ZeroInt()
+	eip150Block := math.ZeroInt()
+	eip155Block := math.ZeroInt()
+	eip158Block := math.ZeroInt()
+	byzantiumBlock := math.ZeroInt()
+	constantinopleBlock := math.ZeroInt()
+	petersburgBlock := math.ZeroInt()
+	istanbulBlock := math.ZeroInt()
+	muirGlacierBlock := math.ZeroInt()
+	berlinBlock := math.ZeroInt()
+	londonBlock := math.ZeroInt()
+	arrowGlacierBlock := math.ZeroInt()
+	mergeForkBlock := math.ZeroInt()
 
 	return ChainConfig{
 		HomesteadBlock:      &homesteadBlock,
@@ -77,7 +77,7 @@ func DefaultChainConfig() ChainConfig {
 	}
 }
 
-func getBlockValue(block *sdk.Int) *big.Int {
+func getBlockValue(block *math.Int) *big.Int {
 	if block == nil || block.IsNegative() {
 		return nil
 	}
@@ -149,7 +149,7 @@ func validateHash(hex string) error {
 	return nil
 }
 
-func validateBlock(block *sdk.Int) error {
+func validateBlock(block *math.Int) error {
 	// nil value means that the fork has not yet been applied
 	if block == nil {
 		return nil

@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/testutil"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 
 	"github.com/evmos/ethermint/encoding"
@@ -20,8 +20,8 @@ import (
 
 func TestMigrateStore(t *testing.T) {
 	encCfg := encoding.MakeConfig(app.ModuleBasics)
-	feemarketKey := sdk.NewKVStoreKey(types.StoreKey)
-	tFeeMarketKey := sdk.NewTransientStoreKey(fmt.Sprintf("%s_test", types.StoreKey))
+	feemarketKey := storetypes.NewKVStoreKey(types.StoreKey)
+	tFeeMarketKey := storetypes.NewTransientStoreKey(fmt.Sprintf("%s_test", types.StoreKey))
 	ctx := testutil.DefaultContext(feemarketKey, tFeeMarketKey)
 	paramstore := paramtypes.NewSubspace(
 		encCfg.Codec, encCfg.Amino, feemarketKey, tFeeMarketKey, "evm",

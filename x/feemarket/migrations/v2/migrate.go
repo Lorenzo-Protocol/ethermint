@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math/big"
 
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	"cosmossdk.io/math"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 
@@ -40,7 +41,7 @@ func MigrateStore(
 	switch {
 	case store.Has(KeyPrefixBaseFeeV1):
 		bz := store.Get(KeyPrefixBaseFeeV1)
-		baseFee = sdk.NewIntFromBigInt(new(big.Int).SetBytes(bz))
+		baseFee = math.NewIntFromBigInt(new(big.Int).SetBytes(bz))
 	case paramstore.Has(ctx, v2types.ParamStoreKeyNoBaseFee):
 		paramstore.GetIfExists(ctx, v2types.ParamStoreKeyBaseFee, &baseFee)
 	}
