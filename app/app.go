@@ -27,22 +27,23 @@ import (
 	"github.com/rakyll/statik/fs"
 	"github.com/spf13/cast"
 
-	dbm "github.com/cometbft/cometbft-db"
 	abci "github.com/cometbft/cometbft/abci/types"
-	"github.com/cometbft/cometbft/libs/log"
 	tmos "github.com/cometbft/cometbft/libs/os"
+	dbm "github.com/cosmos/cosmos-db"
 
+	"cosmossdk.io/log"
 	"cosmossdk.io/simapp"
 	simappparams "cosmossdk.io/simapp/params"
 
-	"cosmossdk.io/store/streaming"
 	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
 	"github.com/cosmos/cosmos-sdk/client/grpc/node"
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/codec/types"
+	"github.com/cosmos/cosmos-sdk/runtime"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	"github.com/cosmos/cosmos-sdk/server/config"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
@@ -59,11 +60,14 @@ import (
 	"cosmossdk.io/x/upgrade"
 	upgradekeeper "cosmossdk.io/x/upgrade/keeper"
 	upgradetypes "cosmossdk.io/x/upgrade/types"
+	sigtypes "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/cosmos/cosmos-sdk/x/auth"
+	authcodec "github.com/cosmos/cosmos-sdk/x/auth/codec"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	"github.com/cosmos/cosmos-sdk/x/auth/posthandler"
 	authsims "github.com/cosmos/cosmos-sdk/x/auth/simulation"
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
+	txmodule "github.com/cosmos/cosmos-sdk/x/auth/tx/config"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/cosmos/cosmos-sdk/x/auth/vesting"
 	vestingtypes "github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
@@ -164,10 +168,10 @@ var (
 		mint.AppModuleBasic{},
 		distr.AppModuleBasic{},
 		gov.NewAppModuleBasic([]govclient.ProposalHandler{
-			paramsclient.ProposalHandler, 
-			// upgradeclient.LegacyProposalHandler, 
+			paramsclient.ProposalHandler,
+			// upgradeclient.LegacyProposalHandler,
 			// upgradeclient.LegacyCancelProposalHandler,
-			// ibcclientclient.UpdateClientProposalHandler, 
+			// ibcclientclient.UpdateClientProposalHandler,
 			// ibcclientclient.UpgradeProposalHandler,
 		}),
 		params.AppModuleBasic{},
@@ -214,6 +218,7 @@ type EthermintApp struct {
 	cdc               *codec.LegacyAmino
 	appCodec          codec.Codec
 	interfaceRegistry types.InterfaceRegistry
+	txConfig          client.TxConfig
 
 	invCheckPeriod uint
 
@@ -287,7 +292,7 @@ func NewEthermintApp(
 	bApp.SetVersion(version.Version)
 	bApp.SetInterfaceRegistry(interfaceRegistry)
 
-	keys := sdk.NewKVStoreKeys(
+	keys := storetypes.NewKVStoreKeys(
 		// SDK keys
 		authtypes.StoreKey, banktypes.StoreKey, stakingtypes.StoreKey,
 		minttypes.StoreKey, distrtypes.StoreKey, slashingtypes.StoreKey,
@@ -301,14 +306,8 @@ func NewEthermintApp(
 	)
 
 	// Add the EVM transient store key
-	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey, evmtypes.TransientKey, feemarkettypes.TransientKey)
-	memKeys := sdk.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
-
-	// load state streaming if enabled
-	if _, _, err := streaming.LoadStreamingServices(bApp, appOpts, appCodec, logger, keys); err != nil {
-		fmt.Printf("failed to load state streaming: %s", err)
-		os.Exit(1)
-	}
+	tkeys := storetypes.NewTransientStoreKeys(paramstypes.TStoreKey, evmtypes.TransientKey, feemarkettypes.TransientKey)
+	memKeys := storetypes.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
 
 	app := &EthermintApp{
 		BaseApp:           bApp,
@@ -321,11 +320,22 @@ func NewEthermintApp(
 		memKeys:           memKeys,
 	}
 
+	// load state streaming if enabled
+	if err := app.RegisterStreamingServices(appOpts, keys); err != nil {
+		fmt.Printf("failed to load state streaming: %s", err)
+		os.Exit(1)
+	}
+
 	// init params keeper and subspaces
 	app.ParamsKeeper = initParamsKeeper(appCodec, cdc, keys[paramstypes.StoreKey], tkeys[paramstypes.TStoreKey])
 	// set the BaseApp's parameter store
-	app.ConsensusParamsKeeper = consensusparamkeeper.NewKeeper(appCodec, keys[consensusparamtypes.StoreKey], authtypes.NewModuleAddress(govtypes.ModuleName).String())
-	bApp.SetParamStore(&app.ConsensusParamsKeeper)
+	app.ConsensusParamsKeeper = consensusparamkeeper.NewKeeper(
+		appCodec,
+		runtime.NewKVStoreService(keys[consensusparamtypes.StoreKey]),
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		runtime.EventService{},
+	)
+	bApp.SetParamStore(&app.ConsensusParamsKeeper.ParamsStore)
 
 	// add capability keeper and ScopeToModule for ibc module
 	app.CapabilityKeeper = capabilitykeeper.NewKeeper(appCodec, keys[capabilitytypes.StoreKey], memKeys[capabilitytypes.MemStoreKey])
@@ -339,28 +349,34 @@ func NewEthermintApp(
 
 	// use custom Ethermint account for contracts
 	app.AccountKeeper = authkeeper.NewAccountKeeper(
-		appCodec, keys[authtypes.StoreKey],
+		appCodec,
+		runtime.NewKVStoreService(keys[authtypes.StoreKey]),
 		ethermint.ProtoAccount,
 		maccPerms,
+		address.NewBech32Codec(sdk.GetConfig().GetBech32AccountAddrPrefix()),
 		sdk.GetConfig().GetBech32AccountAddrPrefix(),
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 	app.BankKeeper = bankkeeper.NewBaseKeeper(
 		appCodec,
-		keys[banktypes.StoreKey],
+		runtime.NewKVStoreService(keys[banktypes.StoreKey]),
 		app.AccountKeeper,
 		app.BlockedAddrs(),
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		logger,
 	)
 	app.StakingKeeper = stakingkeeper.NewKeeper(
-		appCodec, keys[stakingtypes.StoreKey],
+		appCodec,
+		runtime.NewKVStoreService(keys[stakingtypes.StoreKey]),
 		app.AccountKeeper,
 		app.BankKeeper,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		authcodec.NewBech32Codec(sdk.GetConfig().GetBech32ValidatorAddrPrefix()),
+		authcodec.NewBech32Codec(sdk.GetConfig().GetBech32ConsensusAddrPrefix()),
 	)
 	app.MintKeeper = mintkeeper.NewKeeper(
 		appCodec,
-		keys[minttypes.StoreKey],
+		runtime.NewKVStoreService(keys[minttypes.StoreKey]),
 		app.StakingKeeper,
 		app.AccountKeeper,
 		app.BankKeeper,
@@ -369,7 +385,7 @@ func NewEthermintApp(
 	)
 	app.DistrKeeper = distrkeeper.NewKeeper(
 		appCodec,
-		keys[distrtypes.StoreKey],
+		runtime.NewKVStoreService(keys[distrtypes.StoreKey]),
 		app.AccountKeeper,
 		app.BankKeeper,
 		app.StakingKeeper,
@@ -379,31 +395,34 @@ func NewEthermintApp(
 	app.SlashingKeeper = slashingkeeper.NewKeeper(
 		appCodec,
 		cdc,
-		keys[slashingtypes.StoreKey],
+		runtime.NewKVStoreService(keys[slashingtypes.StoreKey]),
 		app.StakingKeeper,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 	app.CrisisKeeper = crisiskeeper.NewKeeper(
 		appCodec,
-		keys[crisistypes.StoreKey],
+		runtime.NewKVStoreService(keys[crisistypes.StoreKey]),
 		invCheckPeriod,
 		app.BankKeeper,
 		authtypes.FeeCollectorName,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		app.AccountKeeper.AddressCodec(),
 	)
 	app.FeeGrantKeeper = feegrantkeeper.NewKeeper(
 		appCodec,
-		keys[feegrant.StoreKey],
-		app.AccountKeeper)
+		runtime.NewKVStoreService(keys[feegrant.StoreKey]),
+		app.AccountKeeper,
+	)
 
 	// set the governance module account as the authority for conducting upgrades
 	app.UpgradeKeeper = upgradekeeper.NewKeeper(
 		skipUpgradeHeights,
-		keys[upgradetypes.StoreKey],
+		runtime.NewKVStoreService(keys[upgradetypes.StoreKey]),
 		appCodec,
 		homePath,
 		app.BaseApp,
-		authtypes.NewModuleAddress(govtypes.ModuleName).String())
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
 
 	// register the staking hooks
 	// NOTE: stakingKeeper above is passed by reference, so that it will contain these hooks
@@ -412,10 +431,11 @@ func NewEthermintApp(
 	)
 
 	app.AuthzKeeper = authzkeeper.NewKeeper(
-		keys[authzkeeper.StoreKey],
+		runtime.NewKVStoreService(keys[authzkeeper.StoreKey]),
 		appCodec,
 		app.MsgServiceRouter(),
-		app.AccountKeeper)
+		app.AccountKeeper,
+	)
 
 	tracer := cast.ToString(appOpts.Get(srvflags.EVMTracer))
 
@@ -429,21 +449,32 @@ func NewEthermintApp(
 	// Set authority to x/gov module account to only expect the module account to update params
 	evmSs := app.GetSubspace(evmtypes.ModuleName)
 	app.EvmKeeper = evmkeeper.NewKeeper(
-		appCodec, keys[evmtypes.StoreKey], tkeys[evmtypes.TransientKey], authtypes.NewModuleAddress(govtypes.ModuleName),
-		app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.FeeMarketKeeper,
+		appCodec,
+		keys[evmtypes.StoreKey],
+		tkeys[evmtypes.TransientKey],
+		authtypes.NewModuleAddress(govtypes.ModuleName),
+		app.AccountKeeper,
+		app.BankKeeper,
+		app.StakingKeeper,
+		app.FeeMarketKeeper,
 		nil, geth.NewEVM, tracer, evmSs,
 	)
 
 	// Create IBC Keeper
 	app.IBCKeeper = ibckeeper.NewKeeper(
-		appCodec, keys[ibcexported.StoreKey], app.GetSubspace(ibcexported.ModuleName), app.StakingKeeper, app.UpgradeKeeper, scopedIBCKeeper,
+		appCodec,
+		keys[ibcexported.StoreKey],
+		app.GetSubspace(ibcexported.ModuleName),
+		app.StakingKeeper,
+		app.UpgradeKeeper,
+		scopedIBCKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
 	// register the proposal types
 	govRouter := govv1beta1.NewRouter()
 	govRouter.AddRoute(govtypes.RouterKey, govv1beta1.ProposalHandler).
 		AddRoute(paramproposal.RouterKey, params.NewParamChangeProposalHandler(app.ParamsKeeper)).
-		AddRoute(upgradetypes.RouterKey, upgrade.NewSoftwareUpgradeProposalHandler(app.UpgradeKeeper)).
 		AddRoute(ibcexported.RouterKey, ibcclient.NewClientProposalHandler(app.IBCKeeper.ClientKeeper))
 	govConfig := govtypes.DefaultConfig()
 	/*
@@ -451,8 +482,15 @@ func NewEthermintApp(
 		govConfig.MaxMetadataLen = 10000
 	*/
 	govKeeper := govkeeper.NewKeeper(
-		appCodec, keys[govtypes.StoreKey], app.AccountKeeper, app.BankKeeper,
-		app.StakingKeeper, app.MsgServiceRouter(), govConfig, authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		appCodec,
+		runtime.NewKVStoreService(keys[govtypes.StoreKey]),
+		app.AccountKeeper,
+		app.BankKeeper,
+		app.StakingKeeper,
+		app.DistrKeeper,
+		app.MsgServiceRouter(),
+		govConfig,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
 	// Set legacy router for backwards compatibility with gov v1beta1
@@ -466,9 +504,15 @@ func NewEthermintApp(
 
 	// Create Transfer Keepers
 	app.TransferKeeper = ibctransferkeeper.NewKeeper(
-		appCodec, keys[ibctransfertypes.StoreKey], app.GetSubspace(ibctransfertypes.ModuleName),
-		app.IBCKeeper.ChannelKeeper, app.IBCKeeper.ChannelKeeper, &app.IBCKeeper.PortKeeper,
-		app.AccountKeeper, app.BankKeeper, scopedTransferKeeper,
+		appCodec, keys[ibctransfertypes.StoreKey],
+		app.GetSubspace(ibctransfertypes.ModuleName),
+		app.IBCKeeper.ChannelKeeper,
+		app.IBCKeeper.ChannelKeeper,
+		app.IBCKeeper.PortKeeper,
+		app.AccountKeeper,
+		app.BankKeeper,
+		scopedTransferKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 	transferModule := transfer.NewAppModule(app.TransferKeeper)
 	transferIBCModule := transfer.NewIBCModule(app.TransferKeeper)
@@ -480,7 +524,12 @@ func NewEthermintApp(
 
 	// create evidence keeper with router
 	evidenceKeeper := evidencekeeper.NewKeeper(
-		appCodec, keys[evidencetypes.StoreKey], app.StakingKeeper, app.SlashingKeeper,
+		appCodec,
+		runtime.NewKVStoreService(keys[evidencetypes.StoreKey]),
+		app.StakingKeeper,
+		app.SlashingKeeper,
+		app.AccountKeeper.AddressCodec(),
+		runtime.ProvideCometInfoService(),
 	)
 	// If evidence needs to be handled for the app, set routes in router here and seal
 	app.EvidenceKeeper = *evidenceKeeper
@@ -496,7 +545,7 @@ func NewEthermintApp(
 	app.mm = module.NewManager(
 		// SDK app modules
 		genutil.NewAppModule(
-			app.AccountKeeper, app.StakingKeeper, app.BaseApp.DeliverTx,
+			app.AccountKeeper, app.StakingKeeper, app,
 			encodingConfig.TxConfig,
 		),
 		auth.NewAppModule(appCodec, app.AccountKeeper, authsims.RandomGenesisAccounts, app.GetSubspace(authtypes.ModuleName)),
@@ -507,10 +556,10 @@ func NewEthermintApp(
 		feegrantmodule.NewAppModule(appCodec, app.AccountKeeper, app.BankKeeper, app.FeeGrantKeeper, app.interfaceRegistry),
 		gov.NewAppModule(appCodec, &app.GovKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(authtypes.ModuleName)),
 		mint.NewAppModule(appCodec, app.MintKeeper, app.AccountKeeper, nil, app.GetSubspace(authtypes.ModuleName)),
-		slashing.NewAppModule(appCodec, app.SlashingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(authtypes.ModuleName)),
+		slashing.NewAppModule(appCodec, app.SlashingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(authtypes.ModuleName), app.interfaceRegistry),
 		distr.NewAppModule(appCodec, app.DistrKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(authtypes.ModuleName)),
 		staking.NewAppModule(appCodec, app.StakingKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(authtypes.ModuleName)),
-		upgrade.NewAppModule(app.UpgradeKeeper),
+		upgrade.NewAppModule(app.UpgradeKeeper, app.AccountKeeper.AddressCodec()),
 		evidence.NewAppModule(app.EvidenceKeeper),
 		params.NewAppModule(app.ParamsKeeper),
 		authzmodule.NewAppModule(appCodec, app.AuthzKeeper, app.AccountKeeper, app.BankKeeper, app.interfaceRegistry),
@@ -531,7 +580,6 @@ func NewEthermintApp(
 	// NOTE: staking module is required if HistoricalEntries param > 0
 	// NOTE: capability module's beginblocker must come before any modules using capabilities (e.g. IBC)
 	app.mm.SetOrderBeginBlockers(
-		upgradetypes.ModuleName,
 		capabilitytypes.ModuleName,
 		feemarkettypes.ModuleName,
 		evmtypes.ModuleName,
@@ -616,6 +664,21 @@ func NewEthermintApp(
 		crisistypes.ModuleName,
 	)
 
+	// optional: enable sign mode textual by overwriting the default tx config (after setting the bank keeper)
+	enabledSignModes := append(authtx.DefaultSignModes, sigtypes.SignMode_SIGN_MODE_TEXTUAL) //nolint:gocritic
+	txConfigOpts := authtx.ConfigOptions{
+		EnabledSignModes:           enabledSignModes,
+		TextualCoinMetadataQueryFn: txmodule.NewBankKeeperCoinMetadataQueryFn(app.BankKeeper),
+	}
+	txConfig, err := authtx.NewTxConfigWithOptions(
+		appCodec,
+		txConfigOpts,
+	)
+	if err != nil {
+		panic(err)
+	}
+	app.txConfig = txConfig
+
 	// Uncomment if you want to set a custom migration order here.
 	// app.mm.SetOrderMigrations(custom order)
 
@@ -637,9 +700,11 @@ func NewEthermintApp(
 
 	// initialize BaseApp
 	app.SetInitChainer(app.InitChainer)
+	app.mm.SetOrderPreBlockers(upgradetypes.ModuleName)
+	app.SetPreBlocker(app.PreBlocker)
 	app.SetBeginBlocker(app.BeginBlocker)
 	app.SetEndBlocker(app.EndBlocker)
-	app.setAnteHandler(encodingConfig.TxConfig, cast.ToUint64(appOpts.Get(srvflags.EVMMaxTxGasWanted)))
+	app.setAnteHandler(app.txConfig, cast.ToUint64(appOpts.Get(srvflags.EVMMaxTxGasWanted)))
 	// In v0.46, the SDK introduces _postHandlers_. PostHandlers are like
 	// antehandlers, but are run _after_ the `runMsgs` execution. They are also
 	// defined as a chain, and have the same signature as antehandlers.
@@ -707,18 +772,22 @@ func (app *EthermintApp) setPostHandler() {
 // Name returns the name of the App
 func (app *EthermintApp) Name() string { return app.BaseApp.Name() }
 
+func (app *EthermintApp) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
+	return app.mm.PreBlock(ctx)
+}
+
 // BeginBlocker updates every begin block
-func (app *EthermintApp) BeginBlocker(ctx sdk.Context, req abci.RequestBeginBlock) abci.ResponseBeginBlock {
-	return app.mm.BeginBlock(ctx, req)
+func (app *EthermintApp) BeginBlocker(ctx sdk.Context) (sdk.BeginBlock, error) {
+	return app.mm.BeginBlock(ctx)
 }
 
 // EndBlocker updates every end block
-func (app *EthermintApp) EndBlocker(ctx sdk.Context, req abci.RequestEndBlock) abci.ResponseEndBlock {
-	return app.mm.EndBlock(ctx, req)
+func (app *EthermintApp) EndBlocker(ctx sdk.Context) (sdk.EndBlock, error) {
+	return app.mm.EndBlock(ctx)
 }
 
 // InitChainer updates at chain initialization
-func (app *EthermintApp) InitChainer(ctx sdk.Context, req abci.RequestInitChain) abci.ResponseInitChain {
+func (app *EthermintApp) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci.ResponseInitChain, error) {
 	var genesisState simapp.GenesisState
 	if err := json.Unmarshal(req.AppStateBytes, &genesisState); err != nil {
 		panic(err)
@@ -840,8 +909,8 @@ func (app *EthermintApp) RegisterTendermintService(clientCtx client.Context) {
 
 // RegisterNodeService registers the node gRPC service on the provided
 // application gRPC query router.
-func (app *EthermintApp) RegisterNodeService(clientCtx client.Context) {
-	node.RegisterNodeService(clientCtx, app.GRPCQueryRouter())
+func (app *EthermintApp) RegisterNodeService(clientCtx client.Context, cfg config.Config) {
+	node.RegisterNodeService(clientCtx, app.GRPCQueryRouter(), cfg)
 }
 
 // RegisterSwaggerAPI registers swagger route with API Server

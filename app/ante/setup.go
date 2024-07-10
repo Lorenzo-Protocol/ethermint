@@ -23,6 +23,7 @@ import (
 	sdkmath "cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdktypes "github.com/cosmos/cosmos-sdk/types"
 	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -49,7 +50,7 @@ func (esc EthSetupContextDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simul
 	}
 
 	// We need to setup an empty gas config so that the gas is consistent with Ethereum.
-	newCtx = ctx.WithGasMeter(sdk.NewInfiniteGasMeter()).
+	newCtx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter()).
 		WithKVGasConfig(storetypes.GasConfig{}).
 		WithTransientKVGasConfig(storetypes.GasConfig{})
 
@@ -111,10 +112,12 @@ func (vbd EthValidateBasicDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simu
 		return next(ctx, tx, simulate)
 	}
 
-	err := tx.ValidateBasic()
-	// ErrNoSignatures is fine with eth tx
-	if err != nil && !errors.Is(err, errortypes.ErrNoSignatures) {
-		return ctx, errorsmod.Wrap(err, "tx basic validation failed")
+	if t, ok := tx.(sdktypes.HasValidateBasic); ok {
+		err := t.ValidateBasic()
+		// ErrNoSignatures is fine with eth tx
+		if err != nil && !errors.Is(err, errortypes.ErrNoSignatures) {
+			return ctx, errorsmod.Wrap(err, "tx basic validation failed")
+		}
 	}
 
 	// For eth type cosmos tx, some fields should be verified as zero values,
@@ -193,7 +196,7 @@ func (vbd EthValidateBasicDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simu
 		txFee = txFee.Add(sdk.Coin{Denom: evmDenom, Amount: sdkmath.NewIntFromBigInt(txData.Fee())})
 	}
 
-	if !authInfo.Fee.Amount.IsEqual(txFee) {
+	if !authInfo.Fee.Amount.Equal(txFee) {
 		return ctx, errorsmod.Wrapf(errortypes.ErrInvalidRequest, "invalid AuthInfo Fee Amount (%s != %s)", authInfo.Fee.Amount, txFee)
 	}
 
