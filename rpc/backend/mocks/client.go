@@ -9,8 +9,8 @@ import (
 	context "context"
 
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
+	"github.com/cometbft/cometbft/libs/log"
 
-	log "github.com/cometbft/cometbft/libs/log"
 
 	mock "github.com/stretchr/testify/mock"
 

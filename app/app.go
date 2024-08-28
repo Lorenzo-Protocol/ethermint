@@ -33,7 +33,7 @@ import (
 
 	"cosmossdk.io/log"
 	"cosmossdk.io/simapp"
-	simappparams "cosmossdk.io/simapp/params"
+	sdktestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 
 	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/baseapp"
@@ -270,7 +270,7 @@ func NewEthermintApp(
 	skipUpgradeHeights map[int64]bool,
 	homePath string,
 	invCheckPeriod uint,
-	encodingConfig simappparams.EncodingConfig,
+	encodingConfig sdktestutil.TestEncodingConfig,
 	appOpts servertypes.AppOptions,
 	baseAppOptions ...func(*baseapp.BaseApp),
 ) *EthermintApp {
@@ -836,6 +836,15 @@ func (app *EthermintApp) LegacyAmino() *codec.LegacyAmino {
 // for modules to register their own custom testing types.
 func (app *EthermintApp) AppCodec() codec.Codec {
 	return app.appCodec
+}
+
+
+// TxConfig returns the Ethermint transaction config
+//
+// It provides custom encoding and decoding functionality for Ethereum
+// transactions, as well as any future transaction types that may be defined.
+func (app *EthermintApp) TxConfig()  client.TxConfig {
+	return app.txConfig
 }
 
 // InterfaceRegistry returns EthermintApp's InterfaceRegistry

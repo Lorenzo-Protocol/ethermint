@@ -33,9 +33,9 @@ import (
 
 	stderrors "github.com/pkg/errors"
 
+	"cosmossdk.io/log"
 	"github.com/cosmos/cosmos-sdk/server"
 
-	"github.com/cometbft/cometbft/libs/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
