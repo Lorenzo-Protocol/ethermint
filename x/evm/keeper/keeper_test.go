@@ -206,8 +206,11 @@ func (suite *KeeperTestSuite) SetupAppWithT(checkTx bool, t require.TestingT) {
 	types.RegisterQueryServer(queryHelper, suite.app.EvmKeeper)
 	suite.queryClient = types.NewQueryClient(queryHelper)
 
+	accountNumber,err := suite.app.AccountKeeper.AccountNumber.Next(suite.ctx)
+	require.NoError(t, err)
+
 	acc := &ethermint.EthAccount{
-		BaseAccount: authtypes.NewBaseAccount(sdk.AccAddress(suite.address.Bytes()), nil, 0, 0),
+		BaseAccount: authtypes.NewBaseAccount(sdk.AccAddress(suite.address.Bytes()), nil, accountNumber, 0),
 		CodeHash:    common.BytesToHash(crypto.Keccak256(nil)).String(),
 	}
 

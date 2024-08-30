@@ -32,7 +32,6 @@ import (
 	"cosmossdk.io/store/snapshots"
 	snapshottypes "cosmossdk.io/store/snapshots/types"
 	storetypes "cosmossdk.io/store/types"
-	rosettacmd "cosmossdk.io/tools/rosetta/cmd"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -172,9 +171,6 @@ func NewRootCmd() (*cobra.Command, sdktestutil.TestEncodingConfig) {
 	if err != nil {
 		panic(err)
 	}
-
-	// add rosetta
-	rootCmd.AddCommand(rosettacmd.RosettaCommand(encodingConfig.InterfaceRegistry, encodingConfig.Codec))
 
 	return rootCmd, encodingConfig
 }

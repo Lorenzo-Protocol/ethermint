@@ -354,8 +354,10 @@ func (suite *AnteTestSuite) TestRejectDeliverMsgsInAuthz() {
 			resDeliverTx,err := suite.app.FinalizeBlock(
 				&abci.RequestFinalizeBlock{
 					Txs: [][]byte{bz},
+					Height: suite.ctx.BlockHeight(),
 				},
 			)
+			suite.Require().NoError(err)
 			suite.Require().Equal(resDeliverTx.TxResults[0].Code, tc.expectedCode, resDeliverTx.TxResults[0].Log)
 		})
 	}

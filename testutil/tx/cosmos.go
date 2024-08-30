@@ -31,7 +31,7 @@ import (
 
 var (
 	feeAmt     = math.Pow10(16)
-	DefaultFee = sdk.NewCoin(evmtypes.DefaultEVMDenom, sdk.NewIntFromUint64(uint64(feeAmt)))
+	DefaultFee = sdk.NewCoin(evmtypes.DefaultEVMDenom, sdkmath.NewIntFromUint64(uint64(feeAmt)))
 )
 
 // CosmosTxArgs contains the params to create a cosmos tx
@@ -106,7 +106,7 @@ func signCosmosTx(
 	sigV2 := signing.SignatureV2{
 		PubKey: args.Priv.PubKey(),
 		Data: &signing.SingleSignatureData{
-			SignMode:  args.TxCfg.SignModeHandler().DefaultMode(),
+			SignMode:  signing.SignMode(args.TxCfg.SignModeHandler().DefaultMode()),
 			Signature: nil,
 		},
 		Sequence: seq,
@@ -126,7 +126,8 @@ func signCosmosTx(
 		Sequence:      seq,
 	}
 	sigV2, err = tx.SignWithPrivKey(
-		args.TxCfg.SignModeHandler().DefaultMode(),
+		ctx,
+		signing.SignMode(args.TxCfg.SignModeHandler().DefaultMode()),
 		signerData,
 		txBuilder, args.Priv, args.TxCfg,
 		seq,

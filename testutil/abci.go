@@ -18,29 +18,37 @@ import (
 //  4. Commit
 func Commit(ctx sdk.Context, app *app.EthermintApp, t time.Duration, vs *tmtypes.ValidatorSet) (sdk.Context, error) {
 	header := ctx.BlockHeader()
+	res, err := app.FinalizeBlock(&abci.RequestFinalizeBlock{
+		Height:          header.Height,
+		ProposerAddress: header.ProposerAddress,
+	})
+	if err != nil {
+		return ctx, err
+	}
 
 	if vs != nil {
-		res := app.EndBlock(abci.RequestEndBlock{Height: header.Height})
-
 		nextVals, err := applyValSetChanges(vs, res.ValidatorUpdates)
 		if err != nil {
 			return ctx, err
 		}
 		header.ValidatorsHash = vs.Hash()
 		header.NextValidatorsHash = nextVals.Hash()
-	} else {
-		app.EndBlocker(ctx, abci.RequestEndBlock{Height: header.Height})
 	}
 
-	_ = app.Commit()
+	if _, err := app.Commit(); err != nil {
+		return ctx, err
+	}
 
 	header.Height++
 	header.Time = header.Time.Add(t)
 	header.AppHash = app.LastCommitID().Hash
 
-	app.BeginBlock(abci.RequestBeginBlock{
-		Header: header,
-	})
+	if _, err := app.PrepareProposal(&abci.RequestPrepareProposal{
+		Height: header.Height,
+		Time:   header.Time,
+	}); err != nil {
+		return ctx, err
+	}
 
 	return ctx.WithBlockHeader(header), nil
 }

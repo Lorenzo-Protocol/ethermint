@@ -113,7 +113,7 @@ func PrepareEIP712CosmosTx(
 	fee := legacytx.NewStdFee(txArgs.Gas, txArgs.Fees) //nolint: staticcheck
 
 	msgs := txArgs.Msgs
-	data := legacytx.StdSignBytes(ctx.ChainID(), accNumber, nonce, 0, fee, msgs, "", nil)
+	data := legacytx.StdSignBytes(ctx.ChainID(), accNumber, nonce, 0, fee, msgs, "")
 
 	typedDataArgs := typedDataArgs{
 		chainID:        chainIDNum,
@@ -199,23 +199,11 @@ func signCosmosEIP712Tx(
 	}
 
 	keyringSigner := NewSigner(priv)
-	signature, pubKey, err := keyringSigner.SignByAddress(from, sigHash)
+	signature, pubKey, err := keyringSigner.SignByAddress(from, sigHash,signing.SignMode_SIGN_MODE_TEXTUAL)
 	if err != nil {
 		return nil, err
 	}
 	signature[crypto.RecoveryIDOffset] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
-
-	if args.UseLegacyExtension {
-		if err := setBuilderLegacyWeb3Extension(
-			builder,
-			legacyWeb3ExtensionArgs{
-				feePayer:  from.String(),
-				chainID:   chainID,
-				signature: signature,
-			}); err != nil {
-			return nil, err
-		}
-	}
 
 	sigsV2 := getTxSignatureV2(
 		signatureV2Args{
@@ -223,7 +211,6 @@ func signCosmosEIP712Tx(
 			signature: signature,
 			nonce:     nonce,
 		},
-		args.UseLegacyExtension,
 	)
 
 	err = builder.SetSignatures(sigsV2)
@@ -236,17 +223,7 @@ func signCosmosEIP712Tx(
 
 // getTxSignatureV2 returns the SignatureV2 object corresponding to
 // the arguments, using the legacy implementation as needed.
-func getTxSignatureV2(args signatureV2Args, useLegacyExtension bool) signing.SignatureV2 {
-	if useLegacyExtension {
-		return signing.SignatureV2{
-			PubKey: args.pubKey,
-			Data: &signing.SingleSignatureData{
-				SignMode: signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON,
-			},
-			Sequence: args.nonce,
-		}
-	}
-
+func getTxSignatureV2(args signatureV2Args) signing.SignatureV2 {
 	// Must use SIGN_MODE_DIRECT, since Amino has some trouble parsing certain Any values from a SignDoc
 	// with the Legacy EIP-712 TypedData encodings. This is not an issue with the latest encoding.
 	return signing.SignatureV2{

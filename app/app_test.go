@@ -3,6 +3,7 @@ package app
 import (
 	"testing"
 
+	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/stretchr/testify/require"
 
 	"cosmossdk.io/log"
@@ -15,10 +16,16 @@ import (
 func TestEthermintAppExport(t *testing.T) {
 	db := dbm.NewMemDB()
 	app := SetupWithDB(false, nil, db)
-	app.Commit()
+	_, err := app.FinalizeBlock(&abci.RequestFinalizeBlock{
+		Height: 1,
+	})
+	require.NoError(t, err, "FinalizeBlock should not have an error")
+
+	_, err = app.Commit()
+	require.NoError(t, err, "Commit should not have an error")
 
 	// Making a new app object with the db, so that initchain hasn't been called
 	app2 := NewEthermintApp(log.NewNopLogger(), db, nil, true, map[int64]bool{}, DefaultNodeHome, 0, encoding.MakeConfig(ModuleBasics), simtestutil.EmptyAppOptions{})
-	_, err := app2.ExportAppStateAndValidators(false, []string{}, []string{})
+	_, err = app2.ExportAppStateAndValidators(false, []string{}, []string{})
 	require.NoError(t, err, "ExportAppStateAndValidators should not have an error")
 }

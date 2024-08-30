@@ -16,11 +16,14 @@
 package encoding
 
 import (
+	"cosmossdk.io/x/tx/signing"
 	amino "github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	sdktestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
+	"github.com/cosmos/gogoproto/proto"
 
 	enccodec "github.com/evmos/ethermint/encoding/codec"
 )
@@ -28,7 +31,16 @@ import (
 // MakeConfig creates an EncodingConfig for testing
 func MakeConfig(mb module.BasicManager) sdktestutil.TestEncodingConfig {
 	cdc := amino.NewLegacyAmino()
-	interfaceRegistry := types.NewInterfaceRegistry()
+	interfaceRegistry,err := types.NewInterfaceRegistryWithOptions(types.InterfaceRegistryOptions{
+		ProtoFiles: proto.HybridResolver,
+		SigningOptions: signing.Options{
+			AddressCodec:          address.NewBech32Codec("cosmos"),
+			ValidatorAddressCodec: address.NewBech32Codec("cosmosvaloper"),
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
 	codec := amino.NewProtoCodec(interfaceRegistry)
 
 	encodingConfig := sdktestutil.TestEncodingConfig{

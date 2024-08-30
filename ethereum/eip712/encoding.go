@@ -43,6 +43,8 @@ var (
 func SetEncodingConfig(cfg sdktestutil.TestEncodingConfig) {
 	aminoCodec = cfg.Amino
 	protoCodec = codec.NewProtoCodec(cfg.InterfaceRegistry)
+
+	legacytx.RegressionTestingAminoCodec = cfg.Amino
 }
 
 // GetEIP712BytesForMsg returns the EIP-712 object bytes for the given SignDoc bytes by decoding the bytes into

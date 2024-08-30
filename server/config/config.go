@@ -26,7 +26,6 @@ import (
 	"github.com/cometbft/cometbft/libs/strings"
 
 	errorsmod "cosmossdk.io/errors"
-	"cosmossdk.io/tools/rosetta"
 	"github.com/cosmos/cosmos-sdk/server/config"
 	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
 )
@@ -92,8 +91,6 @@ type Config struct {
 	EVM     EVMConfig     `mapstructure:"evm"`
 	JSONRPC JSONRPCConfig `mapstructure:"json-rpc"`
 	TLS     TLSConfig     `mapstructure:"tls"`
-	Rosetta RosettaConfig `mapstructure:"rosetta"`
-
 }
 
 // EVMConfig defines the application configuration values for the EVM.
@@ -153,13 +150,6 @@ type TLSConfig struct {
 	CertificatePath string `mapstructure:"certificate-path"`
 	// KeyPath the file path for the key .pem file
 	KeyPath string `mapstructure:"key-path"`
-}
-
-// RosettaConfig defines configuration for the Rosetta server.
-type RosettaConfig struct {
-	rosetta.Config
-	// Enable defines if the Rosetta server should be enabled.
-	Enable bool `mapstructure:"enable"`
 }
 
 // AppConfig helps to override default appConfig template and configs.

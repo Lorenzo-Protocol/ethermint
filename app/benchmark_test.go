@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 
 	"cosmossdk.io/log"
@@ -15,7 +16,18 @@ import (
 
 func BenchmarkEthermintApp_ExportAppStateAndValidators(b *testing.B) {
 	db := dbm.NewMemDB()
-	app := NewEthermintApp(log.NewNopLogger(), db, nil, true, map[int64]bool{}, DefaultNodeHome, 0, encoding.MakeConfig(ModuleBasics), simtestutil.EmptyAppOptions{})
+	app := NewEthermintApp(
+		log.NewNopLogger(), 
+		db, 
+		nil, 
+		true, 
+		map[int64]bool{}, 
+		DefaultNodeHome, 
+		0, 
+		encoding.MakeConfig(ModuleBasics), 
+		simtestutil.EmptyAppOptions{},
+		baseapp.SetChainID("ethermint_9000-1"),
+	)
 
 	genesisState := NewTestGenesisState(app.AppCodec())
 	stateBytes, err := json.MarshalIndent(genesisState, "", "  ")
@@ -31,6 +43,9 @@ func BenchmarkEthermintApp_ExportAppStateAndValidators(b *testing.B) {
 			AppStateBytes: stateBytes,
 		},
 	)
+	_, err = app.FinalizeBlock(&abci.RequestFinalizeBlock{
+		Height: 1,
+	})
 	app.Commit()
 
 	b.ResetTimer()
