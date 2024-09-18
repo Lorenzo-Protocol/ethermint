@@ -281,7 +281,7 @@ func prepareEthTx(priv *ethsecp256k1.PrivKey, msgEthereumTx *evmtypes.MsgEthereu
 func checkEthTx(priv *ethsecp256k1.PrivKey, msgEthereumTx *evmtypes.MsgEthereumTx) *abci.ResponseCheckTx {
 	bz := prepareEthTx(priv, msgEthereumTx)
 	req := &abci.RequestCheckTx{Tx: bz}
-	res,err := s.app.BaseApp.CheckTx(req)
+	res, err := s.app.BaseApp.CheckTx(req)
 	if err != nil {
 		panic(err)
 	}
@@ -290,10 +290,19 @@ func checkEthTx(priv *ethsecp256k1.PrivKey, msgEthereumTx *evmtypes.MsgEthereumT
 
 func deliverEthTx(priv *ethsecp256k1.PrivKey, msgEthereumTx *evmtypes.MsgEthereumTx) *abci.ExecTxResult {
 	bz := prepareEthTx(priv, msgEthereumTx)
-	req := &abci.RequestFinalizeBlock{Txs: [][]byte{bz}}
-	res,err := s.app.BaseApp.FinalizeBlock(req)
-	if err != nil {
-		panic(err)
+	_, err := s.app.BaseApp.ProcessProposal(&abci.RequestProcessProposal{
+		Txs:             [][]byte{bz},
+		Height:          s.ctx.BlockHeight(),
+		ProposerAddress: s.ctx.BlockHeader().ProposerAddress,
+	})
+	s.Require().NoError(err)
+
+	req := &abci.RequestFinalizeBlock{
+		Txs:             [][]byte{bz},
+		Height:          s.ctx.BlockHeight(),
+		ProposerAddress: s.ctx.BlockHeader().ProposerAddress,
 	}
+	res, err := s.app.BaseApp.FinalizeBlock(req)
+	s.Require().NoError(err)
 	return res.TxResults[0]
 }

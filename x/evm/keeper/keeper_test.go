@@ -206,7 +206,7 @@ func (suite *KeeperTestSuite) SetupAppWithT(checkTx bool, t require.TestingT) {
 	types.RegisterQueryServer(queryHelper, suite.app.EvmKeeper)
 	suite.queryClient = types.NewQueryClient(queryHelper)
 
-	accountNumber,err := suite.app.AccountKeeper.AccountNumber.Next(suite.ctx)
+	accountNumber, err := suite.app.AccountKeeper.AccountNumber.Next(suite.ctx)
 	require.NoError(t, err)
 
 	acc := &ethermint.EthAccount{
@@ -240,20 +240,27 @@ func (suite *KeeperTestSuite) EvmDenom() string {
 
 // Commit and begin new block
 func (suite *KeeperTestSuite) Commit() {
-	_,err := suite.app.Commit()
+	header := suite.ctx.BlockHeader()
+	// suite.app.EndBlock(abci.RequestEndBlock{Height: header.Height})
+	_,err := suite.app.FinalizeBlock(&abci.RequestFinalizeBlock{
+		Height:  header.Height,
+	})
+	suite.Require().NoError(err)
+
+	_, err = suite.app.Commit()
 	require.NoError(suite.T(), err)
 
-	header := suite.ctx.BlockHeader()
-	header.Height += 1
-	suite.app.PrepareProposal(&abci.RequestPrepareProposal{
-		Time:    header.Time,
-		Height: header.Height,
-		ProposerAddress: header.ProposerAddress,
+	header.Height ++
+	_,err =suite.app.PrepareProposal(&abci.RequestPrepareProposal{
+		Time:               header.Time,
+		Height:             header.Height,
+		ProposerAddress:    header.ProposerAddress,
 		NextValidatorsHash: header.NextValidatorsHash,
 	})
+	require.NoError(suite.T(), err)
 
 	// update ctx
-	suite.ctx = suite.app.BaseApp.NewContextLegacy(false, header)
+	suite.ctx = suite.app.BaseApp.NewUncachedContext(false, header)
 
 	queryHelper := baseapp.NewQueryServerTestHelper(suite.ctx, suite.app.InterfaceRegistry())
 	types.RegisterQueryServer(queryHelper, suite.app.EvmKeeper)
