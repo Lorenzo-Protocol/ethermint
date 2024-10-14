@@ -107,8 +107,6 @@ func legacyDecodeAminoSignDoc(signDocBytes []byte) (apitypes.TypedData, error) {
 	if err != nil {
 		return apitypes.TypedData{}, err
 	}
-
-	// By convention, the fee payer is the first address in the list of signers.
 	feePayer := signers[0]
 	feeDelegation := &FeeDelegationOptions{
 		FeePayer: feePayer,

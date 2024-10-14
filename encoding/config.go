@@ -20,22 +20,29 @@ import (
 	amino "github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/codec/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	sdktestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	"github.com/cosmos/gogoproto/proto"
 
+	evmapi "github.com/evmos/ethermint/api/ethermint/evm/v1"
 	enccodec "github.com/evmos/ethermint/encoding/codec"
 )
 
 // MakeConfig creates an EncodingConfig for testing
 func MakeConfig(mb module.BasicManager) sdktestutil.TestEncodingConfig {
 	cdc := amino.NewLegacyAmino()
-	interfaceRegistry,err := types.NewInterfaceRegistryWithOptions(types.InterfaceRegistryOptions{
+	interfaceRegistry, err := types.NewInterfaceRegistryWithOptions(types.InterfaceRegistryOptions{
 		ProtoFiles: proto.HybridResolver,
 		SigningOptions: signing.Options{
-			AddressCodec:          address.NewBech32Codec("cosmos"),
-			ValidatorAddressCodec: address.NewBech32Codec("cosmosvaloper"),
+			AddressCodec: address.Bech32Codec{
+				Bech32Prefix: sdk.GetConfig().GetBech32AccountAddrPrefix(),
+			},
+			ValidatorAddressCodec: address.Bech32Codec{
+				Bech32Prefix: sdk.GetConfig().GetBech32ValidatorAddrPrefix(),
+			},
+			CustomGetSigners: evmapi.CustomGetSigner(),
 		},
 	})
 	if err != nil {
